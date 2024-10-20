@@ -1,7 +1,48 @@
+// Function to insert the round slider toggle beside the "Labels" header
+function insertToggle() {
+  // Avoid inserting the toggle multiple times by checking if it already exists
+  if (document.getElementById("inboxToggle")) {
+    return;
+  }
+
+  const labelsHeader = document.querySelector('.aAw span[role="heading"]');
+
+  if (labelsHeader) {
+    // Create the round slider switch HTML
+    const toggleContainer = document.createElement("div");
+    // toggleContainer.classList.add('TO');  // Parent class matching the Gmail style
+
+    toggleContainer.innerHTML = `
+      <div class="aAv toggle-content">
+        <span class="toggle-label">Inbox only</span>
+        <label class="switch">
+          <input type="checkbox" id="inboxToggle" checked>
+          <span class="slider round"></span>
+        </label>
+      </div>
+    `;
+
+    // Insert the toggle switch beside the "Labels" header
+    labelsHeader.parentNode.insertBefore(
+      toggleContainer,
+      labelsHeader.nextSibling
+    );
+
+    // Add event listener to handle toggle state
+    const toggle = document.getElementById("inboxToggle");
+    toggle.addEventListener("change", function () {
+      if (toggle.checked) {
+        modifyDivLinks(true); // Inbox only
+      } else {
+        modifyDivLinks(false); // Show all emails
+      }
+    });
+  }
+}
+
 // Function to programmatically trigger the search by injecting the query
 function performSearch(searchQuery) {
   const searchBox = document.querySelector('input[aria-label="Search mail"]');
-
   if (searchBox) {
     searchBox.value = searchQuery;
 
@@ -20,17 +61,16 @@ function performSearch(searchQuery) {
 function handleDivClick(event, link, searchQuery) {
   // Check if the click is on the label dropdown settings (three dots)
   if (event.target.closest(".pM")) {
-    // If the click is on the dropdown, do nothing and let Gmail handle it
     return;
   }
 
-  event.preventDefault(); // Prevent the default behavior
-  performSearch(searchQuery); // Trigger the search
+  event.preventDefault();
+  performSearch(searchQuery);
   link.click(); // Forward the click to the <a> element to maintain the default behavior
 }
 
-// Function to modify the behavior based on matching div elements
-function modifyDivLinks() {
+// Function to modify the behavior based on the toggle state
+function modifyDivLinks(inboxOnly = true) {
   const divs = document.querySelectorAll(
     '[gh="cl"] [data-tooltip-align="r"] [style]:has([tabindex="0"])'
   );
@@ -46,10 +86,12 @@ function modifyDivLinks() {
           let labelName = href.split("#label/")[1];
           labelName = decodeURIComponent(labelName).replace(/\+/g, " ");
 
-          const searchQuery = `label:${labelName} in:inbox`;
-          const modifiedHref = href + "+in%3Ainbox";
+          const searchQuery =
+            `label:${labelName}` + (inboxOnly ? " in:inbox" : "");
+          const modifiedHref = inboxOnly
+            ? href + "+in%3Ainbox"
+            : href.replace("+in%3Ainbox", "");
 
-          // Set the new href
           link.setAttribute("href", modifiedHref);
 
           // Attach the click event listener to the entire <div>
@@ -64,7 +106,11 @@ function modifyDivLinks() {
 
 // Create a MutationObserver to observe changes in the DOM
 const observer = new MutationObserver(() => {
-  modifyDivLinks();
+  const labelsSection = document.querySelector('.aAw span[role="heading"]');
+  if (labelsSection) {
+    insertToggle(); // Insert the toggle when the labels section is found
+    modifyDivLinks(); // Default to inbox-only emails on first load
+  }
 });
 
 // Start observing the Gmail body or a specific container
