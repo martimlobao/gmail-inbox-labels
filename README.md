@@ -10,7 +10,7 @@ Since the extension is not yet verified on the Chrome Web Store, you can manuall
 
 ### 1. Download the `.crx` File
 
-Download the extension's `.crx` file from [here](path-to-crx-file).
+Download the extension's `.crx` file from [here](https://github.com/martimlobao/gmail-inbox-labels/releases).
 
 ### 2. Enable Developer Mode in Chrome
 
