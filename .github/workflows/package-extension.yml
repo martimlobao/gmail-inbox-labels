@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   package:
     runs-on: ubuntu-latest
@@ -62,13 +65,31 @@ jobs:
         crx pack "$TEMP_DIR" -o gmail-inbox-labels.crx -p pem_key.pem
 
         # Create a zip file for Chrome Web Store
+        echo "Creating zip file..."
         cd "$TEMP_DIR"
-        zip -r ../gmail-inbox-labels.zip .
-        cd - > /dev/null
+        echo "Current directory: $(pwd)"
+        echo "Files to zip:"
+        ls -la
+        zip -r "$GITHUB_WORKSPACE/gmail-inbox-labels.zip" .
+        echo "Zip creation completed"
+        cd "$GITHUB_WORKSPACE"
+        echo "Back to workspace directory: $(pwd)"
 
         # Clean up temporary files
         rm -rf "$TEMP_DIR"
         rm -f pem_key.pem
+
+        # Verify files were created
+        echo "Checking for created files:"
+        ls -la gmail-inbox-labels.*
+
+        # Check if zip file was created successfully
+        if [ ! -f "gmail-inbox-labels.zip" ]; then
+          echo "❌ Error: gmail-inbox-labels.zip was not created!"
+          echo "Contents of temp directory before cleanup:"
+          ls -la "$TEMP_DIR"
+          exit 1
+        fi
 
     - name: Upload extension package
       uses: actions/upload-artifact@v4
@@ -90,3 +111,19 @@ jobs:
         prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Debug Release (Manual Trigger)
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        echo "Debug mode: Manual workflow dispatch"
+        echo "Current ref: ${{ github.ref }}"
+        echo "Current branch: ${{ github.ref_name }}"
+        echo "Files in current directory:"
+        ls -la
+        echo ""
+        echo "Checking for extension files:"
+        ls -la gmail-inbox-labels.* || echo "No extension files found"
+        echo ""
+        echo "To create a release, push a tag:"
+        echo "git tag v1.2.3"
+        echo "git push origin v1.2.3"
