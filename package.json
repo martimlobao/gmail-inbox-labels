@@ -1,6 +1,6 @@
 {
   "name": "gmail-inbox-labels",
-  "version": "1.2.2",
+  "version": "1.2.1",
   "description": "Chrome extension that modifies Gmail label buttons to show only emails in the inbox",
   "main": "content.js",
   "scripts": {
