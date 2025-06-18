@@ -1,0 +1,92 @@
+name: Package Chrome Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Check version consistency
+      run: |
+        MANIFEST_VERSION=$(node -p "require('./manifest.json').version")
+        PACKAGE_VERSION=$(node -p "require('./package.json').version")
+
+        if [ "$MANIFEST_VERSION" != "$PACKAGE_VERSION" ]; then
+          echo "❌ Error: Version mismatch detected!"
+          echo "manifest.json: $MANIFEST_VERSION"
+          echo "package.json: $PACKAGE_VERSION"
+          exit 1
+        else
+          echo "✅ Version consistency check passed: $MANIFEST_VERSION"
+        fi
+
+    - name: Install Chrome
+      run: |
+        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+        echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable
+
+    - name: Install crx tool
+      run: npm install -g crx
+
+    - name: Create extension package
+      run: |
+        # Create a temporary directory for packaging
+        TEMP_DIR=$(mktemp -d)
+        echo "Temporary directory: $TEMP_DIR"
+
+        # Copy extension files
+        cp manifest.json "$TEMP_DIR/"
+        cp content.js "$TEMP_DIR/"
+        cp styles.css "$TEMP_DIR/"
+        cp -r images "$TEMP_DIR/"
+
+        # Write PEM key to temporary file
+        echo "${{ secrets.EXTENSION_PEM_KEY }}" > pem_key.pem
+
+        # Create the .crx file
+        crx pack "$TEMP_DIR" -o gmail-inbox-labels.crx -p pem_key.pem
+
+        # Create a zip file for Chrome Web Store
+        cd "$TEMP_DIR"
+        zip -r ../gmail-inbox-labels.zip .
+        cd - > /dev/null
+
+        # Clean up temporary files
+        rm -rf "$TEMP_DIR"
+        rm -f pem_key.pem
+
+    - name: Upload extension package
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension-package
+        path: |
+          gmail-inbox-labels.crx
+          gmail-inbox-labels.zip
+        retention-days: 30
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          gmail-inbox-labels.crx
+          gmail-inbox-labels.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
