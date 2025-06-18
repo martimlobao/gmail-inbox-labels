@@ -72,8 +72,8 @@ jobs:
         ls -la
         zip -r ../gmail-inbox-labels.zip .
         echo "Zip creation completed"
-        cd ..
-        echo "Back to original directory: $(pwd)"
+        cd "$GITHUB_WORKSPACE"
+        echo "Back to workspace directory: $(pwd)"
 
         # Clean up temporary files
         rm -rf "$TEMP_DIR"
