@@ -9,9 +9,9 @@ This Chrome extension replicates a beloved feature from Google's now-deprecated 
 
 The motivation behind this extension is to help users sort through emails more efficiently by allowing them to go through each bundle of inbox emails separately. With this extension, you can filter emails by label while ensuring that only inbox emails are displayed, helping you prioritize and organize more effectively.
 
-## Installation
+## Manual Installation
 
-Since the extension is not yet verified on the Chrome Web Store, you can manually install it as a `.crx` file. Alternatively, you can download this repo and load the extension as an "unpacked extension" directly.
+To install the extension without using the Chrome Web Store, you can manually install it as a `.crx` file. Alternatively, you can download this repo and load the extension as an "unpacked extension" directly.
 
 ### 1. Download the `.crx` File
 
@@ -59,110 +59,55 @@ The extension should now be installed and ready to use.
 
 ### Version Management
 
-The extension version is managed from a single source to ensure consistency between `manifest.json` and `package.json`.
-
-#### Update Version
-
-To update the version in both files:
+Update version in both `manifest.json` and `package.json`:
 
 ```bash
-npm run version 1.2.2
+npm run version 1.2.3
 ```
 
-This will:
+### Local Build
 
-- Update `manifest.json` version
-- Update `package.json` version
-- Validate the version format (x.y.z)
-
-#### Version Consistency Check
-
-The build process automatically checks for version consistency:
-
-- **Local builds** will warn if versions don't match
-- **GitHub Actions** will fail if versions don't match
-
-### Building the Extension
-
-#### Local Build
-
-To build the extension locally with your PEM key:
+Build with your PEM key:
 
 ```bash
 ./scripts/build.sh /path/to/your/key.pem
 ```
 
-This will:
-
-- Check version consistency
-- Create a temporary directory
-- Copy extension files
-- Create the `.crx` file (signed with your PEM key)
-- Create a `.zip` file for Chrome Web Store
-- Clean up temporary files
-
-Generated files:
-
-- `gmail-inbox-labels.crx` - Signed extension file
-- `gmail-inbox-labels.zip` - ZIP file for Chrome Web Store
-
-#### Automated Build with GitHub Actions
-
-The extension can be automatically built and packaged using GitHub Actions:
-
-1. **Set up the PEM key secret:**
-   - Go to your repository settings
-   - Navigate to Secrets and variables → Actions
-   - Create a new secret named `EXTENSION_PEM_KEY`
-   - Paste your PEM key content as the value
-
-2. **Trigger the build:**
-   - **Option A:** Push a tag starting with 'v' (e.g., `v1.2.1`)
-   - **Option B:** Manually trigger the workflow from the Actions tab
-
-3. **Download the artifacts:**
-   - Go to the Actions tab in your repository
-   - Click on the completed workflow run
-   - Download the `extension-package` artifact
-
-The workflow will:
-
-- Check version consistency between files
-- Package your extension into a `.crx` file (signed with your PEM key)
-- Create a `.zip` file for Chrome Web Store submission
-- Upload both files as artifacts
-- Create a GitHub release (if triggered by a tag)
-
-### Release Workflow
-
-For a complete release:
+### Release Process
 
 1. **Update version:**
 
    ```bash
-   npm run version 1.2.2
+   npm run version 1.2.3
    ```
 
-2. **Commit changes:**
+2. **Commit and tag:**
 
    ```bash
    git add .
-   git commit -m "Bump version to 1.2.2"
+   git commit -m "Bump version to 1.2.3"
+   git tag v1.2.3
+   git push origin main
+   git push origin v1.2.3
    ```
 
-3. **Create and push tag:**
-
-   ```bash
-   git tag v1.2.2
-   git push origin v1.2.2
-   ```
-
-4. **GitHub Actions will automatically:**
+3. **GitHub Actions will automatically:**
    - Build the extension
    - Create a release
-   - Upload the packaged files
+   - Upload `.crx` and `.zip` files
 
-### File Structure
+### GitHub Actions Setup
+
+1. Add your PEM key as a repository secret:
+   - Go to Settings → Secrets and variables → Actions
+   - Create secret: `EXTENSION_PEM_KEY`
+   - Paste your PEM key content
+
+2. The workflow triggers on:
+   - Version tags (e.g., `v1.2.3`)
+   - Manual workflow dispatch
+
+## File Structure
 
 ```text
 gmail-inbox-labels/
