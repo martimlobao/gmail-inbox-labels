@@ -75,23 +75,40 @@ Build with your PEM key:
 
 ### Release Process
 
-1. **Update version:**
+1. **Create a release branch:**
+
+   ```bash
+   git checkout -b release/v1.2.3
+   ```
+
+2. **Update version:**
 
    ```bash
    npm run version 1.2.3
    ```
 
-2. **Commit and tag:**
+3. **Commit and push:**
 
    ```bash
    git add .
    git commit -m "Bump version to 1.2.3"
+   git push origin release/v1.2.3
+   ```
+
+4. **Create pull request:**
+   - Go to GitHub and create a PR from `release/v1.2.3` to `main`
+   - Review and merge the PR
+
+5. **Create and push tag:**
+
+   ```bash
+   git checkout main
+   git pull origin main
    git tag v1.2.3
-   git push origin main
    git push origin v1.2.3
    ```
 
-3. **GitHub Actions will automatically:**
+6. **GitHub Actions will automatically:**
    - Build the extension
    - Create a release
    - Upload `.crx` and `.zip` files
