@@ -57,17 +57,27 @@ The extension should now be installed and ready to use.
    - Enable Developer Mode
    - Click "Load unpacked" and select the project directory
 
-### Version Management
+### Building
 
-Update version in both `manifest.json` and `package.json`:
+#### Development Build
+
+Create unpacked extension in `dist/` directory:
 
 ```bash
-npm run version 1.2.3
+npm run build
 ```
 
-### Local Build
+#### Package for Distribution
 
-Build with your PEM key:
+Create a zip file for Chrome Web Store:
+
+```bash
+npm run package
+```
+
+#### Signed Build (with PEM key)
+
+Create signed `.crx` file for direct installation:
 
 ```bash
 ./scripts/build.sh /path/to/your/key.pem
