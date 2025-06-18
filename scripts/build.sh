@@ -49,15 +49,15 @@ check_versions
 
 # Create temporary directory
 echo "📁 Creating temporary directory..."
-rm -rf temp-extension
-mkdir -p temp-extension
+TEMP_DIR=$(mktemp -d)
+echo "   Temporary directory: $TEMP_DIR"
 
 # Copy extension files
 echo "📋 Copying extension files..."
-cp manifest.json temp-extension/
-cp content.js temp-extension/
-cp styles.css temp-extension/
-cp -r images temp-extension/
+cp manifest.json "$TEMP_DIR/"
+cp content.js "$TEMP_DIR/"
+cp styles.css "$TEMP_DIR/"
+cp -r images "$TEMP_DIR/"
 
 # Check if crx tool is installed
 if ! command -v crx &> /dev/null; then
@@ -67,17 +67,17 @@ fi
 
 # Create .crx file
 echo "🔐 Creating signed .crx file..."
-crx pack temp-extension -o gmail-inbox-labels.crx -p "$PEM_KEY_PATH"
+crx pack "$TEMP_DIR" -o gmail-inbox-labels.crx -p "$PEM_KEY_PATH"
 
 # Create zip file for Chrome Web Store
 echo "📦 Creating zip file for Chrome Web Store..."
-cd temp-extension
+cd "$TEMP_DIR"
 zip -r ../gmail-inbox-labels.zip .
-cd ..
+cd - > /dev/null
 
 # Clean up
 echo "🧹 Cleaning up temporary files..."
-rm -rf temp-extension
+rm -rf "$TEMP_DIR"
 
 echo "✅ Build complete!"
 echo "📁 Generated files:"
