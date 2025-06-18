@@ -1,11 +1,9 @@
 {
     "manifest_version": 3,
     "name": "Gmail Inbox Labels",
-    "version": "1.1",
+    "version": "1.2.0",
     "description": "Modifies Gmail label buttons to show only emails in the inbox.",
     "permissions": [
-      "activeTab",
-      "scripting",
       "storage"
     ],
     "content_scripts": [
