@@ -65,9 +65,15 @@ jobs:
         crx pack "$TEMP_DIR" -o gmail-inbox-labels.crx -p pem_key.pem
 
         # Create a zip file for Chrome Web Store
+        echo "Creating zip file..."
         cd "$TEMP_DIR"
+        echo "Current directory: $(pwd)"
+        echo "Files to zip:"
+        ls -la
         zip -r ../gmail-inbox-labels.zip .
+        echo "Zip creation completed"
         cd ..
+        echo "Back to original directory: $(pwd)"
 
         # Clean up temporary files
         rm -rf "$TEMP_DIR"
@@ -76,6 +82,14 @@ jobs:
         # Verify files were created
         echo "Checking for created files:"
         ls -la gmail-inbox-labels.*
+
+        # Check if zip file was created successfully
+        if [ ! -f "gmail-inbox-labels.zip" ]; then
+          echo "❌ Error: gmail-inbox-labels.zip was not created!"
+          echo "Contents of temp directory before cleanup:"
+          ls -la "$TEMP_DIR"
+          exit 1
+        fi
 
     - name: Upload extension package
       uses: actions/upload-artifact@v4
