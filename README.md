@@ -3,9 +3,11 @@
 <!-- markdownlint-disable-next-line no-inline-html -->
 <p align="center"><img src="images/demo.gif" alt="Extension demo"/></p>
 
-**Gmail Inbox Labels** is a Chrome extension that modifies the behavior of Gmail labels in the sidebar so that clicking a label only shows emails that are in the inbox.
+**Bring Back Inbox's Best Feature to Gmail!**
 
-The motivation behind this extension is to recreate the functionality from Google's now-deprecated Inbox app, which made it easier to sort through emails by allowing users to go through each bundle of emails in their inbox separately. With this extension, you can filter emails by label while ensuring that only inbox emails are displayed, helping you prioritize and organize more efficiently.
+This Chrome extension replicates a beloved feature from Google's now-deprecated Inbox app: when you click a label in Gmail's sidebar, you'll only see emails that are both in the inbox and have that label. This makes it easy to process your inbox by label, just like you could in Inbox.
+
+The motivation behind this extension is to help users sort through emails more efficiently by allowing them to go through each bundle of inbox emails separately. With this extension, you can filter emails by label while ensuring that only inbox emails are displayed, helping you prioritize and organize more effectively.
 
 ## Installation
 
