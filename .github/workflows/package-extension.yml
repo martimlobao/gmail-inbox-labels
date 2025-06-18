@@ -1,0 +1,70 @@
+name: Package Chrome Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Install Chrome
+      run: |
+        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+        echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable
+
+    - name: Install crx tool
+      run: npm install -g crx
+
+    - name: Create extension package
+      run: |
+        # Create a temporary directory for packaging
+        mkdir -p temp-extension
+
+        # Copy extension files
+        cp manifest.json temp-extension/
+        cp content.js temp-extension/
+        cp styles.css temp-extension/
+        cp -r images temp-extension/
+
+        # Create the .crx file
+        crx pack temp-extension -o gmail-inbox-labels.crx -p ${{ secrets.EXTENSION_PEM_KEY }}
+
+        # Create a zip file for Chrome Web Store
+        cd temp-extension
+        zip -r ../gmail-inbox-labels.zip .
+        cd ..
+
+    - name: Upload extension package
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension-package
+        path: |
+          gmail-inbox-labels.crx
+          gmail-inbox-labels.zip
+        retention-days: 30
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          gmail-inbox-labels.crx
+          gmail-inbox-labels.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
