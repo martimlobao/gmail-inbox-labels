@@ -70,7 +70,7 @@ jobs:
         echo "Current directory: $(pwd)"
         echo "Files to zip:"
         ls -la
-        zip -r ../gmail-inbox-labels.zip .
+        zip -r "$GITHUB_WORKSPACE/gmail-inbox-labels.zip" .
         echo "Zip creation completed"
         cd "$GITHUB_WORKSPACE"
         echo "Back to workspace directory: $(pwd)"
@@ -125,5 +125,5 @@ jobs:
         ls -la gmail-inbox-labels.* || echo "No extension files found"
         echo ""
         echo "To create a release, push a tag:"
-        echo "git tag v1.2.2"
-        echo "git push origin v1.2.2"
+        echo "git tag v1.2.3"
+        echo "git push origin v1.2.3"
