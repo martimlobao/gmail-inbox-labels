@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   package:
     runs-on: ubuntu-latest
@@ -64,11 +67,15 @@ jobs:
         # Create a zip file for Chrome Web Store
         cd "$TEMP_DIR"
         zip -r ../gmail-inbox-labels.zip .
-        cd - > /dev/null
+        cd ..
 
         # Clean up temporary files
         rm -rf "$TEMP_DIR"
         rm -f pem_key.pem
+
+        # Verify files were created
+        echo "Checking for created files:"
+        ls -la gmail-inbox-labels.*
 
     - name: Upload extension package
       uses: actions/upload-artifact@v4
