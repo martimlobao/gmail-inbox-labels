@@ -1,21 +1,27 @@
 {
-    "manifest_version": 3,
-    "name": "Gmail Inbox Labels",
-    "version": "1.2.0",
-    "description": "Modifies Gmail label buttons to show only emails in the inbox.",
-    "permissions": [
-      "storage"
-    ],
-    "content_scripts": [
+  "manifest_version": 3,
+  "name": "Gmail Inbox Labels",
+  "version": "1.2.2",
+  "description": "Modifies Gmail label buttons to show only emails in the inbox.",
+  "permissions": [
+    "storage"
+  ],
+  "content_scripts": [
     {
-      "matches": ["https://mail.google.com/*"],
-      "js": ["content.js"],
-      "css": ["styles.css"]
+      "matches": [
+        "https://mail.google.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "styles.css"
+      ]
     }
   ],
-    "icons": {
-      "16": "images/icon16.png",
-      "48": "images/icon48.png",
-      "128": "images/icon128.png"
-    }
+  "icons": {
+    "16": "images/icon16.png",
+    "48": "images/icon48.png",
+    "128": "images/icon128.png"
   }
+}

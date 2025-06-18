@@ -57,6 +57,29 @@ The extension should now be installed and ready to use.
    - Enable Developer Mode
    - Click "Load unpacked" and select the project directory
 
+### Version Management
+
+The extension version is managed from a single source to ensure consistency between `manifest.json` and `package.json`.
+
+#### Update Version
+
+To update the version in both files:
+
+```bash
+npm run version 1.2.2
+```
+
+This will:
+- Update `manifest.json` version
+- Update `package.json` version
+- Validate the version format (x.y.z)
+
+#### Version Consistency Check
+
+The build process automatically checks for version consistency:
+- **Local builds** will warn if versions don't match
+- **GitHub Actions** will fail if versions don't match
+
 ### Building the Extension
 
 #### Local Build
@@ -67,8 +90,15 @@ To build the extension locally with your PEM key:
 ./scripts/build.sh /path/to/your/key.pem
 ```
 
-This will create:
+This will:
+- Check version consistency
+- Create a temporary directory
+- Copy extension files
+- Create the `.crx` file (signed with your PEM key)
+- Create a `.zip` file for Chrome Web Store
+- Clean up temporary files
 
+Generated files:
 - `gmail-inbox-labels.crx` - Signed extension file
 - `gmail-inbox-labels.zip` - ZIP file for Chrome Web Store
 
@@ -92,11 +122,37 @@ The extension can be automatically built and packaged using GitHub Actions:
    - Download the `extension-package` artifact
 
 The workflow will:
-
+- Check version consistency between files
 - Package your extension into a `.crx` file (signed with your PEM key)
 - Create a `.zip` file for Chrome Web Store submission
 - Upload both files as artifacts
 - Create a GitHub release (if triggered by a tag)
+
+### Release Workflow
+
+For a complete release:
+
+1. **Update version:**
+   ```bash
+   npm run version 1.2.2
+   ```
+
+2. **Commit changes:**
+   ```bash
+   git add .
+   git commit -m "Bump version to 1.2.2"
+   ```
+
+3. **Create and push tag:**
+   ```bash
+   git tag v1.2.2
+   git push origin v1.2.2
+   ```
+
+4. **GitHub Actions will automatically:**
+   - Build the extension
+   - Create a release
+   - Upload the packaged files
 
 ### File Structure
 
@@ -104,6 +160,8 @@ The workflow will:
 gmail-inbox-labels/
 ├── .github/workflows/    # GitHub Actions workflows
 ├── scripts/              # Build scripts
+│   ├── build.sh         # Local build script
+│   └── version.js       # Version management script
 ├── images/               # Extension icons
 ├── content.js            # Main extension logic
 ├── styles.css            # Extension styles

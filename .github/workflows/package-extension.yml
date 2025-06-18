@@ -19,6 +19,20 @@ jobs:
       with:
         node-version: '18'
 
+    - name: Check version consistency
+      run: |
+        MANIFEST_VERSION=$(node -p "require('./manifest.json').version")
+        PACKAGE_VERSION=$(node -p "require('./package.json').version")
+
+        if [ "$MANIFEST_VERSION" != "$PACKAGE_VERSION" ]; then
+          echo "❌ Error: Version mismatch detected!"
+          echo "manifest.json: $MANIFEST_VERSION"
+          echo "package.json: $PACKAGE_VERSION"
+          exit 1
+        else
+          echo "✅ Version consistency check passed: $MANIFEST_VERSION"
+        fi
+
     - name: Install Chrome
       run: |
         wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -

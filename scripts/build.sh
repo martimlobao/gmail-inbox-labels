@@ -6,6 +6,29 @@ set -e
 
 echo "🚀 Building Gmail Inbox Labels Chrome Extension..."
 
+# Function to check version consistency
+check_versions() {
+    local manifest_version=$(node -p "require('./manifest.json').version")
+    local package_version=$(node -p "require('./package.json').version")
+
+    if [ "$manifest_version" != "$package_version" ]; then
+        echo "⚠️  Warning: Version mismatch detected!"
+        echo "   manifest.json: $manifest_version"
+        echo "   package.json: $package_version"
+        echo ""
+        echo "To fix this, run: npm run version <version>"
+        echo "Example: npm run version 1.2.2"
+        echo ""
+        read -p "Continue anyway? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    else
+        echo "✅ Version consistency check passed: $manifest_version"
+    fi
+}
+
 # Check if PEM key is provided
 if [ -z "$1" ]; then
     echo "❌ Error: Please provide the path to your PEM key file"
@@ -20,6 +43,9 @@ if [ ! -f "$PEM_KEY_PATH" ]; then
     echo "❌ Error: PEM key file not found at $PEM_KEY_PATH"
     exit 1
 fi
+
+# Check version consistency
+check_versions
 
 # Create temporary directory
 echo "📁 Creating temporary directory..."
