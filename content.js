@@ -32,78 +32,45 @@ function initializeToggle() {
   const toggle = document.getElementById("inboxToggle");
   chrome.storage.sync.get(['inboxOnly'], function(result) {
     toggle.checked = result.inboxOnly !== undefined ? result.inboxOnly : true;
-    modifyDivLinks(toggle.checked);
   });
 
   toggle.addEventListener("change", function () {
     chrome.storage.sync.set({inboxOnly: toggle.checked});
-    modifyDivLinks(toggle.checked);
   });
 }
 
-// Function to perform the search
-function performSearch(searchQuery) {
-  const searchBox = document.querySelector('input[aria-label="Search mail"]');
-  if (searchBox) {
-    searchBox.value = searchQuery;
-    searchBox.dispatchEvent(new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      key: "Enter",
-      code: "Enter",
-      keyCode: 13,
-    }));
+// Intercept before Gmail's label handler can replace the inbox search.
+// Delegation also covers rows Gmail inserts or replaces after initialization.
+function handleLabelClick(event) {
+  const toggle = document.getElementById("inboxToggle");
+  if (!toggle?.checked || event.button !== 0 || event.ctrlKey || event.metaKey ||
+      event.shiftKey || event.altKey || !(event.target instanceof Element) ||
+      event.target.closest(".pM")) {
+    return;
   }
-}
 
-// Function to handle clicks on the entire div
-function handleDivClick(event, link, searchQuery) {
-  if (!event.target.closest(".pM")) {
-    event.preventDefault();
-    if (searchQuery) {
-      performSearch(searchQuery);
-    }
-    link.click();
+  const row = event.target.closest('[gh="cl"] [data-tooltip-align="r"]');
+  const link = row?.querySelector('a[href*="#label/"]');
+  if (!link) {
+    return;
   }
+
+  let labelName;
+  try {
+    // Decode route separators before percent escapes so a literal %2B stays '+'.
+    labelName = decodeURIComponent(link.getAttribute("href").split("#label/")[1].replace(/\+/g, " "));
+  } catch {
+    return;
+  }
+  const quotedLabel = labelName.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const searchQuery = `label:"${quotedLabel}" in:inbox`;
+
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  window.location.hash = `#search/${encodeURIComponent(searchQuery)}`;
 }
 
-// Function to modify the behavior based on the toggle state
-function modifyDivLinks(inboxOnly) {
-  const divs = document.querySelectorAll(
-    '[gh="cl"] [data-tooltip-align="r"] [style]:has([tabindex="0"])'
-  );
-
-  divs.forEach((div) => {
-    const link = div.querySelector("div > div > span > a");
-    if (link) {
-      let href = link.getAttribute("href");
-      if (!href || !href.includes("#label/")) {
-        return;
-      }
-
-      let labelName = decodeURIComponent(href.split("#label/")[1]).replace(/\+/g, " ");
-      let searchQuery = `label:${labelName}`;
-
-      if (inboxOnly) {
-        if (!searchQuery.includes("in:inbox")) {
-          searchQuery += ' in:inbox';
-          href += "+in%3Ainbox";
-        }
-      } else {
-        searchQuery = searchQuery.replace(/\s*in:inbox/g, '');
-        href = href.replace(/\+in%3Ainbox/g, "");
-      }
-
-      // Remove the previous event listener before attaching a new one
-      div.removeEventListener('click', div._listener);
-      const listener = (event) => handleDivClick(event, link, searchQuery);
-      div.addEventListener('click', listener);
-      div._listener = listener;
-
-      link.setAttribute("href", href);
-    }
-  });
-}
+document.addEventListener("click", handleLabelClick, true);
 
 // Function to initialize the extension
 function initExtension() {
@@ -120,10 +87,4 @@ const observer = new MutationObserver(() => {
 // Start observing the Gmail body or a specific container
 observer.observe(document.body, { childList: true, subtree: true });
 
-// Re-run modifyDivLinks periodically to catch any dynamically added elements
-setInterval(() => {
-  const toggle = document.getElementById("inboxToggle");
-  if (toggle) {
-    modifyDivLinks(toggle.checked);
-  }
-}, 2000);
+initExtension();

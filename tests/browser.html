@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Gmail Inbox Labels regression fixture</title>
+<style>
+  body { font: 18px system-ui; margin: 48px; max-width: 850px; }
+  [data-tooltip-align] { padding: 20px; border: 1px solid #ccc; margin: 20px 0; }
+  .pM { float: right; }
+  pre { padding: 24px; background: #eef6ee; white-space: pre-wrap; }
+</style>
+<h1>Gmail Inbox Labels regression fixture</h1>
+<p>Runs the actual content script against a synthetic Gmail sidebar.
+  A simulated Gmail handler resets the query if the click reaches it.</p>
+<div class="aAw"><span role="heading">Labels</span></div>
+<div gh="cl">
+  <div data-tooltip-align="r"><div style="margin-left:0px">
+    <div class="icon">Label icon</div>
+    <div><span><a href="#label/%E2%80%A2+Newsletters" tabindex="0">• Newsletters</a></span></div>
+    <button class="pM">Label menu</button>
+  </div></div>
+  <div data-tooltip-align="r"><div style="margin-left:0px">
+    <div><span><a href="#label/C%2B%2B+News" tabindex="0">C++ News</a></span></div>
+  </div></div>
+</div>
+<pre id="result">Ready</pre>
+<script>
+  let nativeClicks = 0;
+  window.chrome = { storage: { sync: {
+    get: (_, callback) => callback({ inboxOnly: true }),
+    set: () => {},
+  } } };
+  document.querySelector('[gh="cl"]').addEventListener('click', event => {
+    if (event.target.closest('.pM')) return;
+    event.preventDefault();
+    nativeClicks++;
+    location.hash = '#label/native-reset';
+    render();
+  });
+  function render() {
+    document.getElementById('result').textContent =
+      `Route: ${decodeURIComponent(location.hash)}\nGmail handler calls: ${nativeClicks}`;
+  }
+  window.addEventListener('hashchange', render);
+</script>
+<script src="../content.js"></script>
+</html>
