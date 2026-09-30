@@ -5,7 +5,7 @@ function createToggle() {
     <div class="aAv toggle-content">
       <span class="toggle-label">Inbox only</span>
       <label class="switch">
-        <input type="checkbox" id="inboxToggle" title="Adds or removes an inbox filter from the current label or search. Combined mailbox filters may show no results.">
+        <input type="checkbox" id="inboxToggle" title="Adds or removes an inbox filter from the current folder, label, or search. Combined mailbox filters may show no results.">
         <span class="slider round"></span>
       </label>
     </div>
@@ -30,6 +30,7 @@ function insertToggle() {
 // Function to initialize the toggle state and event listeners
 function initializeToggle() {
   const toggle = document.getElementById("inboxToggle");
+  toggle.disabled = true;
   withExtensionContext(toggle, () => {
     chrome.storage.sync.get(['inboxOnly'], function(result) {
       if (chrome.runtime.lastError) {
@@ -37,6 +38,7 @@ function initializeToggle() {
         return;
       }
       toggle.checked = result.inboxOnly !== undefined ? result.inboxOnly : true;
+      toggle.disabled = false;
     });
   });
 
@@ -125,6 +127,18 @@ function searchTerms(query) {
 
 let lastInboxSearch = null;
 
+function discardUnrelatedRestoration() {
+  if (!lastInboxSearch) return;
+  const route = window.location.hash.match(/^#search\/([^/]+)(?:\/p\d+)?$/);
+  try {
+    if (!route || decodeRoute(route[1]) !== lastInboxSearch.filtered) lastInboxSearch = null;
+  } catch {
+    lastInboxSearch = null;
+  }
+}
+
+window.addEventListener("hashchange", discardUnrelatedRestoration);
+
 const folderQueries = {
   inbox: "in:inbox",
   all: "",
@@ -138,6 +152,10 @@ const folderQueries = {
 };
 
 function refreshCurrentView(inboxOnly) {
+  discardUnrelatedRestoration();
+  const restoration = lastInboxSearch;
+  // Every off transition ends this restoration session, including early returns.
+  if (!inboxOnly) lastInboxSearch = null;
   const hash = window.location.hash;
   const folder = hash.match(/^#([^/]+)(?:\/p\d+)?$/)?.[1];
   const isFolder = Object.hasOwn(folderQueries, folder);
@@ -167,14 +185,12 @@ function refreshCurrentView(inboxOnly) {
     if (hasInbox && !hasBoolean) return;
     nextQuery = query ? `${hasBoolean ? `(${query})` : query} in:inbox` : "in:inbox";
     lastInboxSearch = { original: query, filtered: nextQuery, folderHash: isFolder ? `#${folder}` : null };
-  } else if (lastInboxSearch?.filtered === query) {
-    if (lastInboxSearch.folderHash) {
-      window.location.hash = lastInboxSearch.folderHash;
-      lastInboxSearch = null;
+  } else if (restoration?.filtered === query) {
+    if (restoration.folderHash) {
+      window.location.hash = restoration.folderHash;
       return;
     }
-    nextQuery = lastInboxSearch.original;
-    lastInboxSearch = null;
+    nextQuery = restoration.original;
   } else {
     // Never remove an inbox term from an OR branch or from inside a group.
     if (!hasInbox || hasBoolean) return;

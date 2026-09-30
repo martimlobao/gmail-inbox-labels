@@ -6,7 +6,7 @@ const { JSDOM } = require('jsdom');
 // SOURCE allows the same regression to be run against the previous script.
 const source = fs.readFileSync(process.env.SOURCE || 'content.js', 'utf8');
 
-function setup(t, { inboxOnly = true, href = '#label/%E2%80%A2+Newsletters', hash = '#inbox', readError = null } = {}) {
+function setup(t, { inboxOnly = true, href = '#label/%E2%80%A2+Newsletters', hash = '#inbox', readError = null, deferRead = false } = {}) {
   const dom = new JSDOM(`
     <div class="aAw"><span role="heading">Labels</span></div>
     <input aria-label="Search mail">
@@ -27,10 +27,12 @@ function setup(t, { inboxOnly = true, href = '#label/%E2%80%A2+Newsletters', has
   const link = document.querySelector('a');
   link.setAttribute('href', href);
   const writes = [];
+  let pendingRead;
   window.chrome = { runtime: { id: 'test-extension' }, storage: { sync: {
     get: (_keys, callback) => {
       if (readError) throw new window.Error(readError);
-      callback({ inboxOnly });
+      if (deferRead) pendingRead = () => callback({ inboxOnly });
+      else callback({ inboxOnly });
     },
     set: (value, callback) => { writes.push(value); callback?.(); },
   } } };
@@ -55,7 +57,7 @@ function setup(t, { inboxOnly = true, href = '#label/%E2%80%A2+Newsletters', has
     document.getElementById('inboxToggle').checked = checked;
     document.getElementById('inboxToggle').dispatchEvent(new window.Event('change'));
   };
-  return { window, document, link, click, query, toggle, writes, nativeClicks: () => nativeClicks };
+  return { window, document, link, click, query, toggle, writes, finishRead: () => pendingRead(), nativeClicks: () => nativeClicks };
 }
 
 test('spaced Unicode label stays an inbox search instead of reverting to native label navigation', t => {
@@ -353,4 +355,52 @@ test('an invalidated script stops intercepting label clicks', t => {
   page.click();
   assert.equal(page.nativeClicks(), 1);
   assert.equal(page.document.getElementById('inboxToggle').disabled, true);
+});
+
+test('initial setting read blocks user interaction until storage finishes', t => {
+  const page = setup(t, { inboxOnly: false, deferRead: true, hash: '#label/Newsletters' });
+  const toggle = page.document.getElementById('inboxToggle');
+  assert.equal(toggle.disabled, true);
+  toggle.click();
+  assert.equal(page.writes.length, 0);
+  assert.equal(page.window.location.hash, '#label/Newsletters');
+  page.finishRead();
+  assert.equal(toggle.disabled, false);
+  assert.equal(toggle.checked, false);
+  toggle.click();
+  assert.equal(toggle.checked, true);
+  assert.equal(page.writes[0].inboxOnly, true);
+  assert.equal(page.query(), 'label:"Newsletters" in:inbox');
+});
+
+test('off on an unrelated view cannot restore an old folder later', t => {
+  const page = setup(t, { inboxOnly: false, hash: '#sent' });
+  page.toggle(true);
+  const oldFiltered = page.window.location.hash;
+  page.window.location.hash = '#search/from%3Aa';
+  page.toggle(false);
+  page.window.location.hash = oldFiltered;
+  page.toggle(true);
+  page.toggle(false);
+  assert.equal(page.query(), 'in:sent');
+});
+
+test('independent route changes clear restoration even if the toggle stays on', t => {
+  const page = setup(t, { inboxOnly: false, hash: '#sent' });
+  page.toggle(true);
+  const oldFiltered = page.window.location.hash;
+  page.window.location.hash = '#inbox';
+  page.window.dispatchEvent(new page.window.HashChangeEvent('hashchange'));
+  page.window.location.hash = oldFiltered;
+  page.toggle(false);
+  assert.equal(page.query(), 'in:sent');
+});
+
+test('normalizing spaces in a filtered route retains its matching restoration', t => {
+  const page = setup(t, { inboxOnly: false, hash: '#sent' });
+  page.toggle(true);
+  page.window.location.hash = '#search/in%3Asent+in%3Ainbox';
+  page.window.dispatchEvent(new page.window.HashChangeEvent('hashchange'));
+  page.toggle(false);
+  assert.equal(page.window.location.hash, '#sent');
 });
