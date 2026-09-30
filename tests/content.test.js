@@ -6,7 +6,7 @@ const { JSDOM } = require('jsdom');
 // SOURCE allows the same regression to be run against the previous script.
 const source = fs.readFileSync(process.env.SOURCE || 'content.js', 'utf8');
 
-function setup(t, { inboxOnly = true, href = '#label/%E2%80%A2+Newsletters' } = {}) {
+function setup(t, { inboxOnly = true, href = '#label/%E2%80%A2+Newsletters', hash = '#inbox' } = {}) {
   const dom = new JSDOM(`
     <div class="aAw"><span role="heading">Labels</span></div>
     <input aria-label="Search mail">
@@ -16,7 +16,7 @@ function setup(t, { inboxOnly = true, href = '#label/%E2%80%A2+Newsletters' } = 
         <div><span><a tabindex="0">• Newsletters</a></span></div>
         <div class="pM"><span class="menu-icon">Menu</span></div>
       </div>
-    </div></div>`, { url: 'https://mail.google.com/mail/u/0/#inbox', runScripts: 'outside-only' });
+    </div></div>`, { url: `https://mail.google.com/mail/u/0/${hash}`, runScripts: 'outside-only' });
   t.after(() => {
     // Flush/disconnect the script observer before jsdom destroys its document.
     dom.window.disconnectObserver();
@@ -48,7 +48,11 @@ function setup(t, { inboxOnly = true, href = '#label/%E2%80%A2+Newsletters' } = 
     return event;
   };
   const query = () => decodeURIComponent(window.location.hash.slice('#search/'.length));
-  return { window, document, link, click, query, writes, nativeClicks: () => nativeClicks };
+  const toggle = checked => {
+    document.getElementById('inboxToggle').checked = checked;
+    document.getElementById('inboxToggle').dispatchEvent(new window.Event('change'));
+  };
+  return { window, document, link, click, query, toggle, writes, nativeClicks: () => nativeClicks };
 }
 
 test('spaced Unicode label stays an inbox search instead of reverting to native label navigation', t => {
@@ -134,4 +138,122 @@ test('malformed routes and system links fall through safely', t => {
   page.link.setAttribute('href', '#inbox');
   page.click();
   assert.equal(page.nativeClicks(), 2);
+});
+
+test('turning on refreshes a native label view; turning off removes its inbox filter', t => {
+  const page = setup(t, { inboxOnly: false, hash: '#label/%E2%80%A2+Newsletters' });
+  page.toggle(true);
+  assert.equal(page.query(), 'label:"• Newsletters" in:inbox');
+  page.toggle(false);
+  assert.equal(page.query(), 'label:"• Newsletters"');
+  page.toggle(true);
+  assert.equal(page.query(), 'label:"• Newsletters" in:inbox');
+});
+
+test('compatible manual searches preserve their other filters and quoted text', t => {
+  const query = 'label:"C++ News" from:example.com subject:"in:inbox (weekly)" is:unread';
+  const page = setup(t, { inboxOnly: false, hash: `#search/${encodeURIComponent(query)}` });
+  page.toggle(true);
+  assert.equal(page.query(), `${query} in:inbox`);
+  page.toggle(false);
+  assert.equal(page.query(), query);
+});
+
+test('removes only positive standalone inbox operators, including duplicates and quoted values', t => {
+  const page = setup(t, { hash: `#search/${encodeURIComponent('"in:inbox" label:"Inbox in:inbox" IN:INBOX in:"inbox" -in:trash')}` });
+  page.toggle(false);
+  assert.equal(page.query(), '"in:inbox" label:"Inbox in:inbox" -in:trash');
+});
+
+for (const query of [
+  'in:spam', 'in:"spam" label:Newsletters', 'IN:TRASH', 'in:sent', 'in:anywhere',
+  'is:spam', 'label:trash', '-in:inbox is:unread', '-in:"inbox"',
+  '{label:A label:B}', '(from:a from:b)',
+]) {
+  test(`adds a global inbox intersection and restores the original search: ${query}`, t => {
+    const hash = `#search/${encodeURIComponent(query)}`;
+    const page = setup(t, { inboxOnly: false, hash });
+    page.toggle(true);
+    assert.equal(page.query(), `${query} in:inbox`);
+    assert.equal(page.writes[0].inboxOnly, true);
+    page.toggle(false);
+    assert.equal(page.window.location.hash, hash);
+  });
+}
+
+for (const query of ['from:a OR from:b', 'in:inbox OR in:spam', 'from:a AND from:b', 'from:a | from:b']) {
+  test(`groups Boolean search before applying the inbox filter: ${query}`, t => {
+    const page = setup(t, { inboxOnly: false, hash: `#search/${encodeURIComponent(query)}` });
+    page.toggle(true);
+    assert.equal(page.query(), `(${query}) in:inbox`);
+    page.toggle(false);
+    assert.equal(page.query(), query);
+  });
+}
+
+test('date filters remain intact when toggling', t => {
+  const query = 'after:2026/09/01 before:2026/10/01 label:"• Newsletters"';
+  const page = setup(t, { inboxOnly: false, hash: `#search/${encodeURIComponent(query)}` });
+  page.toggle(true);
+  assert.equal(page.query(), `${query} in:inbox`);
+  page.toggle(false);
+  assert.equal(page.query(), query);
+});
+
+test('after reload only the outer inbox constraint is removed from a grouped search', t => {
+  const page = setup(t, { hash: `#search/${encodeURIComponent('(in:inbox OR in:spam) in:inbox')}` });
+  page.toggle(false);
+  assert.equal(page.query(), '(in:inbox OR in:spam)');
+});
+
+test('an inbox term inside an OR branch is left intact when turning off', t => {
+  const query = 'in:inbox OR from:a';
+  const page = setup(t, { hash: `#search/${encodeURIComponent(query)}` });
+  page.toggle(false);
+  assert.equal(page.query(), query);
+});
+
+test('manual edits after enabling are preserved when turning off', t => {
+  const page = setup(t, { inboxOnly: false, hash: '#search/label%3ANewsletters' });
+  page.toggle(true);
+  page.window.location.hash = `#search/${encodeURIComponent('from:a in:inbox after:2026/09/01')}`;
+  page.toggle(false);
+  assert.equal(page.query(), 'from:a after:2026/09/01');
+});
+
+for (const query of ['subject:"unfinished', '(from:a OR from:b', '{from:a)', 'from:a\\']) {
+  test(`malformed search is left unchanged: ${query}`, t => {
+    const hash = `#search/${encodeURIComponent(query)}`;
+    const page = setup(t, { inboxOnly: false, hash });
+    page.toggle(true);
+    assert.equal(page.window.location.hash, hash);
+  });
+}
+
+for (const hash of ['#inbox', '#spam', '#trash', '#sent', '#all', '#label/Newsletters/0123456789abcdef', '#search/hello/0123456789abcdef', '#search/%ZZ']) {
+  test(`keeps folder, open message or malformed route: ${hash}`, t => {
+    const page = setup(t, { inboxOnly: false, hash });
+    page.toggle(true);
+    assert.equal(page.window.location.hash, hash);
+    page.toggle(false);
+    assert.equal(page.window.location.hash, hash);
+  });
+}
+
+test('refreshing a paginated search resets to its first page', t => {
+  const page = setup(t, { inboxOnly: false, hash: '#search/label%3ANewsletters/p2' });
+  page.toggle(true);
+  assert.equal(page.query(), 'label:Newsletters in:inbox');
+});
+
+test('removing the sole inbox search term opens All Mail', t => {
+  const page = setup(t, { hash: '#search/in%3Ainbox' });
+  page.toggle(false);
+  assert.equal(page.window.location.hash, '#all');
+});
+
+test('stored setting initializes without changing the current view', t => {
+  const page = setup(t, { inboxOnly: true, hash: '#label/Newsletters' });
+  assert.equal(page.document.getElementById('inboxToggle').checked, true);
+  assert.equal(page.window.location.hash, '#label/Newsletters');
 });
