@@ -30,9 +30,9 @@
 <pre id="result">Ready</pre>
 <script>
   let nativeClicks = 0;
-  window.chrome = { storage: { sync: {
+  window.chrome = { runtime: { id: 'test-extension' }, storage: { sync: {
     get: (_, callback) => callback({ inboxOnly: true }),
-    set: () => {},
+    set: (_, callback) => callback?.(),
   } } };
   document.querySelector('[gh="cl"]').addEventListener('click', event => {
     if (event.target.closest('.pM')) return;

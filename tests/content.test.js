@@ -6,7 +6,7 @@ const { JSDOM } = require('jsdom');
 // SOURCE allows the same regression to be run against the previous script.
 const source = fs.readFileSync(process.env.SOURCE || 'content.js', 'utf8');
 
-function setup(t, { inboxOnly = true, href = '#label/%E2%80%A2+Newsletters', hash = '#inbox' } = {}) {
+function setup(t, { inboxOnly = true, href = '#label/%E2%80%A2+Newsletters', hash = '#inbox', readError = null } = {}) {
   const dom = new JSDOM(`
     <div class="aAw"><span role="heading">Labels</span></div>
     <input aria-label="Search mail">
@@ -27,9 +27,12 @@ function setup(t, { inboxOnly = true, href = '#label/%E2%80%A2+Newsletters', has
   const link = document.querySelector('a');
   link.setAttribute('href', href);
   const writes = [];
-  window.chrome = { storage: { sync: {
-    get: (_keys, callback) => callback({ inboxOnly }),
-    set: value => writes.push(value),
+  window.chrome = { runtime: { id: 'test-extension' }, storage: { sync: {
+    get: (_keys, callback) => {
+      if (readError) throw new window.Error(readError);
+      callback({ inboxOnly });
+    },
+    set: (value, callback) => { writes.push(value); callback?.(); },
   } } };
   let nativeClicks = 0;
   // Gmail consumes label clicks and canonicalizes the search field itself.
@@ -230,8 +233,8 @@ for (const query of ['subject:"unfinished', '(from:a OR from:b', '{from:a)', 'fr
   });
 }
 
-for (const hash of ['#inbox', '#spam', '#trash', '#sent', '#all', '#label/Newsletters/0123456789abcdef', '#search/hello/0123456789abcdef', '#search/%ZZ']) {
-  test(`keeps folder, open message or malformed route: ${hash}`, t => {
+for (const hash of ['#settings/general', '#unknown', '#sent/0123456789abcdef', '#label/Newsletters/0123456789abcdef', '#search/hello/0123456789abcdef', '#search/%ZZ']) {
+  test(`keeps unknown view, open message or malformed route: ${hash}`, t => {
     const page = setup(t, { inboxOnly: false, hash });
     page.toggle(true);
     assert.equal(page.window.location.hash, hash);
@@ -239,6 +242,50 @@ for (const hash of ['#inbox', '#spam', '#trash', '#sent', '#all', '#label/Newsle
     assert.equal(page.window.location.hash, hash);
   });
 }
+
+for (const [folder, query] of [
+  ['sent', 'in:sent'], ['drafts', 'in:drafts'], ['spam', 'in:spam'],
+  ['trash', 'in:trash'], ['starred', 'is:starred'], ['imp', 'is:important'],
+  ['snoozed', 'in:snoozed'], ['all', ''],
+]) {
+  test(`folder and equivalent search apply the same inbox filter: ${folder}`, t => {
+    const page = setup(t, { inboxOnly: false, hash: `#${folder}` });
+    page.toggle(true);
+    const expected = query ? `${query} in:inbox` : 'in:inbox';
+    assert.equal(page.query(), expected);
+    if (query) {
+      const search = setup(t, { inboxOnly: false, hash: `#search/${encodeURIComponent(query)}` });
+      search.toggle(true);
+      assert.equal(search.query(), expected);
+    }
+    page.toggle(false);
+    assert.equal(page.window.location.hash, `#${folder}`);
+  });
+}
+
+test('turning off in Inbox broadens to All Mail, just like an inbox search', t => {
+  const page = setup(t);
+  page.toggle(false);
+  assert.equal(page.window.location.hash, '#all');
+  page.toggle(true);
+  assert.equal(page.query(), 'in:inbox');
+  page.toggle(false);
+  assert.equal(page.window.location.hash, '#all');
+});
+
+test('enabling in Inbox keeps the existing inbox view', t => {
+  const page = setup(t, { inboxOnly: false });
+  page.toggle(true);
+  assert.equal(page.window.location.hash, '#inbox');
+});
+
+test('folder pagination resets to page one when toggled', t => {
+  const page = setup(t, { inboxOnly: false, hash: '#sent/p2' });
+  page.toggle(true);
+  assert.equal(page.query(), 'in:sent in:inbox');
+  page.toggle(false);
+  assert.equal(page.window.location.hash, '#sent');
+});
 
 test('refreshing a paginated search resets to its first page', t => {
   const page = setup(t, { inboxOnly: false, hash: '#search/label%3ANewsletters/p2' });
@@ -256,4 +303,54 @@ test('stored setting initializes without changing the current view', t => {
   const page = setup(t, { inboxOnly: true, hash: '#label/Newsletters' });
   assert.equal(page.document.getElementById('inboxToggle').checked, true);
   assert.equal(page.window.location.hash, '#label/Newsletters');
+});
+
+test('invalidated storage write is handled without an uncaught error or navigation', t => {
+  const page = setup(t, { inboxOnly: false, hash: '#label/Newsletters' });
+  const errors = [];
+  page.window.addEventListener('error', event => { errors.push(event.error); event.preventDefault(); });
+  page.window.chrome.storage.sync.set = () => { throw new page.window.Error('Extension context invalidated.'); };
+  page.toggle(true);
+  assert.equal(errors.length, 0);
+  const toggle = page.document.getElementById('inboxToggle');
+  assert.equal(toggle.disabled, true);
+  assert.equal(toggle.checked, false);
+  assert.match(page.document.querySelector('.toggle-label').textContent, /reload Gmail/);
+  assert.equal(page.window.location.hash, '#label/Newsletters');
+});
+
+test('missing runtime after extension reload avoids storage entirely', t => {
+  const page = setup(t, { inboxOnly: false, hash: '#label/Newsletters' });
+  delete page.window.chrome.runtime.id;
+  page.toggle(true);
+  assert.equal(page.writes.length, 0);
+  assert.equal(page.document.getElementById('inboxToggle').disabled, true);
+  assert.equal(page.window.location.hash, '#label/Newsletters');
+});
+
+test('invalidated initial storage read offers a Gmail reload', t => {
+  const page = setup(t, { readError: 'Extension context invalidated.' });
+  assert.equal(page.document.getElementById('inboxToggle').disabled, true);
+  assert.match(page.document.querySelector('.toggle-label').textContent, /reload Gmail/);
+});
+
+test('callback storage failure is consumed and does not change the search', t => {
+  const page = setup(t, { inboxOnly: false, hash: '#label/Newsletters' });
+  page.window.chrome.storage.sync.set = (_, callback) => {
+    page.window.chrome.runtime.lastError = { message: 'Extension context invalidated.' };
+    callback();
+    delete page.window.chrome.runtime.lastError;
+  };
+  page.toggle(true);
+  assert.equal(page.document.getElementById('inboxToggle').disabled, true);
+  assert.equal(page.document.getElementById('inboxToggle').checked, false);
+  assert.equal(page.window.location.hash, '#label/Newsletters');
+});
+
+test('an invalidated script stops intercepting label clicks', t => {
+  const page = setup(t);
+  delete page.window.chrome.runtime.id;
+  page.click();
+  assert.equal(page.nativeClicks(), 1);
+  assert.equal(page.document.getElementById('inboxToggle').disabled, true);
 });

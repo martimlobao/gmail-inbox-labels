@@ -30,14 +30,52 @@ function insertToggle() {
 // Function to initialize the toggle state and event listeners
 function initializeToggle() {
   const toggle = document.getElementById("inboxToggle");
-  chrome.storage.sync.get(['inboxOnly'], function(result) {
-    toggle.checked = result.inboxOnly !== undefined ? result.inboxOnly : true;
+  withExtensionContext(toggle, () => {
+    chrome.storage.sync.get(['inboxOnly'], function(result) {
+      if (chrome.runtime.lastError) {
+        showReloadRequired(toggle);
+        return;
+      }
+      toggle.checked = result.inboxOnly !== undefined ? result.inboxOnly : true;
+    });
   });
 
   toggle.addEventListener("change", function () {
-    chrome.storage.sync.set({inboxOnly: toggle.checked});
-    refreshCurrentView(toggle.checked);
+    const inboxOnly = toggle.checked;
+    const available = withExtensionContext(toggle, () => {
+      chrome.storage.sync.set({inboxOnly}, () => {
+        if (chrome.runtime.lastError) {
+          toggle.checked = !inboxOnly;
+          showReloadRequired(toggle);
+          return;
+        }
+        if (!toggle.disabled && toggle.checked === inboxOnly) refreshCurrentView(inboxOnly);
+      });
+    });
+    if (!available) toggle.checked = !inboxOnly;
   });
+}
+
+function showReloadRequired(toggle) {
+  toggle.disabled = true;
+  toggle.title = "Reload this Gmail tab to reconnect Inbox only.";
+  toggle.closest(".toggle-content").querySelector(".toggle-label").textContent = "Inbox only — reload Gmail";
+}
+
+// Reloading/updating an extension can leave its old content script in open tabs.
+function withExtensionContext(toggle, action) {
+  if (!chrome.runtime?.id) {
+    showReloadRequired(toggle);
+    return false;
+  }
+  try {
+    action();
+    return true;
+  } catch (error) {
+    if (!/Extension context invalidated/i.test(error.message)) throw error;
+    showReloadRequired(toggle);
+    return false;
+  }
 }
 
 function decodeRoute(value) {
@@ -87,15 +125,34 @@ function searchTerms(query) {
 
 let lastInboxSearch = null;
 
+const folderQueries = {
+  inbox: "in:inbox",
+  all: "",
+  sent: "in:sent",
+  drafts: "in:drafts",
+  spam: "in:spam",
+  trash: "in:trash",
+  starred: "is:starred",
+  imp: "is:important",
+  snoozed: "in:snoozed",
+};
+
 function refreshCurrentView(inboxOnly) {
-  const match = window.location.hash.match(/^#(label|search)\/([^/]+)(?:\/p\d+)?$/);
-  // Leave folders and open messages in place; refreshed searches start on page 1.
-  if (!match) return;
+  const hash = window.location.hash;
+  const folder = hash.match(/^#([^/]+)(?:\/p\d+)?$/)?.[1];
+  const isFolder = Object.hasOwn(folderQueries, folder);
+  const match = hash.match(/^#(label|search)\/([^/]+)(?:\/p\d+)?$/);
+  // Open messages and unknown views stay in place; refreshed views start on page 1.
+  if (!isFolder && !match) return;
 
   let query;
   try {
-    const value = decodeRoute(match[2]);
-    query = match[1] === "label" ? labelQuery(value) : value;
+    if (isFolder) {
+      query = folderQueries[folder];
+    } else {
+      const value = decodeRoute(match[2]);
+      query = match[1] === "label" ? labelQuery(value) : value;
+    }
   } catch {
     return;
   }
@@ -108,9 +165,14 @@ function refreshCurrentView(inboxOnly) {
   let nextQuery;
   if (inboxOnly) {
     if (hasInbox && !hasBoolean) return;
-    nextQuery = `${hasBoolean ? `(${query})` : query} in:inbox`;
-    lastInboxSearch = { original: query, filtered: nextQuery };
+    nextQuery = query ? `${hasBoolean ? `(${query})` : query} in:inbox` : "in:inbox";
+    lastInboxSearch = { original: query, filtered: nextQuery, folderHash: isFolder ? `#${folder}` : null };
   } else if (lastInboxSearch?.filtered === query) {
+    if (lastInboxSearch.folderHash) {
+      window.location.hash = lastInboxSearch.folderHash;
+      lastInboxSearch = null;
+      return;
+    }
     nextQuery = lastInboxSearch.original;
     lastInboxSearch = null;
   } else {
@@ -125,11 +187,12 @@ function refreshCurrentView(inboxOnly) {
 // Delegation also covers rows Gmail inserts or replaces after initialization.
 function handleLabelClick(event) {
   const toggle = document.getElementById("inboxToggle");
-  if (!toggle?.checked || event.button !== 0 || event.ctrlKey || event.metaKey ||
+  if (!toggle?.checked || toggle.disabled || event.button !== 0 || event.ctrlKey || event.metaKey ||
       event.shiftKey || event.altKey || !(event.target instanceof Element) ||
       event.target.closest(".pM")) {
     return;
   }
+  if (!withExtensionContext(toggle, () => {})) return;
 
   const row = event.target.closest('[gh="cl"] [data-tooltip-align="r"]');
   const link = row?.querySelector('a[href*="#label/"]');
