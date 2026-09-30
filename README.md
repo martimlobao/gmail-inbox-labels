@@ -9,13 +9,17 @@ This Chrome extension replicates a beloved feature from Google's now-deprecated 
 
 The motivation behind this extension is to help users sort through emails more efficiently by allowing them to go through each bundle of inbox emails separately. With this extension, you can filter emails by label while ensuring that only inbox emails are displayed, helping you prioritize and organize more effectively.
 
-## Manual Installation
+## Installation
 
-To install the extension without using the Chrome Web Store, you can manually install it as a `.crx` file. Alternatively, you can download this repo and load the extension as an "unpacked extension" directly.
+You can install Gmail Inbox Labels from the [Chrome Web Store](https://chromewebstore.google.com/detail/gmail-inbox-labels/clkdmajmahdcnloehhffbachpmecallc).
+
+## Manual installation
+
+Alternatively, you can either manually install the extension as a `.crx` file, or download this repo and load the directory as an "unpacked extension" directly.
 
 ### 1. Download the `.crx` File
 
-Download the extension's `.crx` file from [here](https://github.com/martimlobao/gmail-inbox-labels/releases).
+Download the extension's `.crx` file from [the latest release](https://github.com/martimlobao/gmail-inbox-labels/releases).
 
 ### 2. Enable Developer Mode in Chrome
 
@@ -58,6 +62,12 @@ The extension should now be installed and ready to use.
    - Click "Load unpacked" and select the project directory
 
 ### Building
+
+Run the regression tests before building:
+
+```bash
+npm test
+```
 
 #### Development Build
 
